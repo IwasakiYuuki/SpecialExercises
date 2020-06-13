@@ -9,9 +9,9 @@ ENV LC_ALL ja_JP.UTF-8
 ENV TZ JST-9
 ENV TERM xterm
 
-RUN apt-get install -y vim less
+RUN apt-get install -y vim less nodejs npm
 RUN pip install --upgrade pip
 RUN pip install --upgrade setuptools
-RUN pip install numpy scipy matplotlib Pillow ipython[all] jupyter scikit-learn
+RUN pip install numpy scipy matplotlib Pillow ipython[all] scikit-learn jupyterlab
 
-CMD ["jupyter", "notebook", "--port", "8001", "--ip=0.0.0.0", "--allow-root"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--allow-root", "--NotebookApp.token=''"]
