@@ -471,5 +471,315 @@ epoch 900 loss 0.0028436916336632635 z [[0.07621343 0.91943909 0.92374011 0.0680
   \paragraph{ 考察}
   本課題でXORの入力と出力を学習させて，その出力を手計算でステップ関数を適用させた．まず，前提として資料に載っていた学習設定では学習しきっていなさそうだったため，学習率を0.1から1.0まで引き上げた．そうしたら500エポックを超え始めたあたりから急激に損失関数の出力が下がりはじめた様に見えた．また，実際に手作業でステップ関数も適用させた結果から正しく学習できているということが分かった．
 
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % Chapter 4
+  % Exercise 4.3
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  \section{Chapter~4}
+  \subsection{Exercise~4.3}
+  \paragraph{ 課題内容}
+  Try to increase the performance of the neural network by setting the parameter to various values.　Consider the recognition accuracy, parameter values such as the number of hidden layer neurons,　learning rate, epoch number and initial weights and biases, and what kind of images are difficult to　recognize, and put the consideration and findings together in your final report.
+
+  \paragraph{ 解答}
+  課題内容がExercise4.2で学習させた結果より精度を上げるためにハイパーパラメータなどを変更せよとのことだった．まずはExercise4.2の出力を以下に示す．
+
+  \begin{itembox}[l]{出力結果}
+    {\footnotesize
+    \begin{verbatim}
+epoch:0 loss:0.3379676518566211
+epoch:1 loss:0.23594588128504435
+epoch:2 loss:0.1722073375253008
+epoch:3 loss:0.13766380775297515
+epoch:4 loss:0.1176365801136934
+
+[[5523    2   83   18   19  120   73   29   53    3]
+ [   4 6489   45   37   12   27   12   18   83   15]
+ [ 107   85 4932  140  144   24  196  116  183   31]
+ [ 101   79  157 5163   15  307   33   71  139   66]
+ [   6   45   69    7 5250   11  121   17   25  291]
+ [ 208   61   54  305   75 4121  151   49  319   78]
+ [  84   40   86    6   49  151 5418    8   72    4]
+ [  29   90   74   80  123   21   10 5516   28  294]
+ [  21  166  124  243   83  376   59   34 4620  125]
+ [  28   39   36   69  281   53    8  214   93 5128]]
+train_accuary=0.8693333333333333
+
+[[ 940    0    2    3    1   13    9    5    6    1]
+ [   0 1102    5    4    1    2    5    1   14    1]
+ [  17   12  859   20   22    2   27   24   38   11]
+ [  13   14   32  848    4   49    2   11   27   10]
+ [   2    3    4    1  885    1   29    0    2   55]
+ [  26    8    5   58   12  681   18   16   54   14]
+ [  17    7    6    2    9   29  874    5    6    3]
+ [  10   21   26   11   15    1    1  888    0   55]
+ [   5   19   14   30   17   58   10   11  783   27]
+ [   2    6    3    9   38   13    4   17   10  907]]
+test_accuary=0.8767
+    \end{verbatim}}
+  \end{itembox}
+
+  \begin{figure}[h]
+    \centering
+    \includegraphics[width=10cm]{images/exercise4.2.jpg}
+    \caption{MNISTデータにおけるFFNモデル学習時の損失関数}
+    \label{fig:mnist-ffn-loss}
+  \end{figure}
+
+  以上の結果から精度を上げるためにハイパーパラメータを変更した．具体的にはエポックを5から20，中間層の次元数を10から50に変更すると以下のような結果が得られた．また，そのソースコードも以下に示す．
+
+　\begin{lstlisting}[basicstyle=\small, caption=Exercise~3.5, label=src:exercise3.5]
+class Dataset:
+    def __init__(self, data_dir=None, data=None, transform=None, train=True):
+        self.data_dir = data_dir
+        self.transform = transform
+        self.train = train
+
+    def __getitem__(self, idx):
+        raise NotImplementedError
+
+
+class MNISTDataset(Dataset):
+
+    urls = [
+        'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz',
+        'http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz',
+        'http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz',
+        'http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz',
+    ]
+
+    def __init__(self, data_dir, transform=None, train=True):
+        super(MNISTDataset, self).__init__(data_dir,
+                                           transform=transform,
+                                           train=train)
+
+        if not self._exist_data():
+            print('Start downloading MNIST data from http://yann.lecun.com/exdb/mnist/')
+            self.download()
+            print('Complete!')
+
+        if self.train:
+            self.data = (
+                read_mnist_data(os.path.join(self.data_dir, 'train-images-idx3-ubyte.gz')),
+                read_mnist_data(os.path.join(self.data_dir, 'train-labels-idx1-ubyte.gz')),
+            )
+        else:
+            self.data = (
+                read_mnist_data(os.path.join(self.data_dir, 't10k-images-idx3-ubyte.gz')),
+                read_mnist_data(os.path.join(self.data_dir, 't10k-labels-idx1-ubyte.gz')),
+            )
+
+    def __getitem__(self, idx):
+        images = self.data[0][idx]
+        labels = self.data[1][idx]
+
+        if self.transform:
+            images, labels = self.transform((images, labels))
+
+        return images, labels
+
+    def __len__(self):
+        return self.data[0].shape[0]
+
+    def download(self):
+        import urllib.request
+
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        for url in self.urls:
+            filename = url.rpartition('/')[2]
+            urllib.request.urlretrieve(url, os.path.join(self.data_dir, filename))
+
+        return
+
+    def _exist_data(self):
+        for url in self.urls:
+            filename = url.rpartition('/')[2]
+            if not os.path.isfile(os.path.join(self.data_dir, filename)):
+                return False
+
+        return True
+
+
+class DataLoader:
+    def __init__(self, dataset, batch_size=100):
+        self.dataset = dataset
+        self._batch_size = batch_size
+        self._i = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if (self._i * self._batch_size) >= len(self.dataset):
+            self._i = 0
+            raise StopIteration
+        elif ((self._i + 1) * self._batch_size) >= len(self.dataset):
+            x, y = self.dataset[self._i * self._batch_size:]
+        else:
+            x, y = self.dataset[self._i * self._batch_size:(self._i + 1) * self._batch_size]
+
+        self._i += 1
+        return x, y
+
+
+def read_mnist_data(filepath):
+    import gzip, codecs
+    with gzip.open(filepath, 'rb') as f:
+        data = f.read()
+
+    magic = int(codecs.encode(data[0:4], 'hex'), 16)
+    nd = magic % 256
+    ty = magic // 256
+    data_num = int(codecs.encode(data[4:8], 'hex'), 16)
+
+    return np.frombuffer(data, dtype=np.uint8, offset=(4 * (nd + 1))).reshape(data_num, -1)
+
+
+class MNISTTransform:
+    def __init__(self):
+        pass
+
+    def __call__(self, data):
+        x = data[0] / 255
+        y = np.identity(10)[data[1].flatten()]
+
+        return (x, y)
+
+epochs = 20  # 5 -> 20へ変更
+batch_size = 100
+input_dim = 784
+hidden_dim = 50 # 10 -> 50へ変更
+output_dim = 10
+
+mnist_train = MNISTDataset('../data/mnist', transform=MNISTTransform(), train=True)
+mnist_test = MNISTDataset('../data/mnist', transform=MNISTTransform(), train=False)
+dataloader_train = DataLoader(mnist_train, batch_size=batch_size)
+dataloader_test = DataLoader(mnist_test, batch_size=batch_size)
+
+w = np.random.randn(hidden_dim, input_dim)
+b = np.random.randn(hidden_dim, 1)
+u = np.random.randn(output_dim, hidden_dim)
+c = np.random.randn(output_dim, 1)
+
+layer1 = Affine(w, b)
+layer2 = Sigmoid()
+layer3 = Affine(u, c)
+layer4 = Sigmoid()
+layer5 = MSE()
+
+loss = []
+
+for epoch in range(epochs):
+    predicts = []
+    for x, y in dataloader_train:
+        p = layer1.forward(x.T)
+        t = layer2.forward(p)
+        q = layer3.forward(t)
+        z = layer4.forward(q)
+        predicts.append(list(z.T))
+        loss.append(layer5.forward(z, y.T))
+
+        dz = layer5.backward()
+        dq = layer4.backward(dz)
+        dt = layer3.backward(dq)
+        dp = layer2.backward(dt)
+        dx = layer1.backward(dp)
+
+        layer1.update(lr=0.05)
+        layer3.update(lr=0.05)
+    print('epoch:{epoch} loss:{loss}'.format(epoch=epoch, loss=loss[-1]))
+
+images, labels = mnist_train[0:]
+predicts = np.identity(10)[np.argmax(np.array(predicts).reshape(-1, 10), axis=1)]
+results = np.dot(labels.T, predicts).astype(np.int32)
+
+print(results)
+print('accuary={}'.format(np.diag(results).sum() / results.sum()))
+
+plt.plot(np.arange(12000), np.array(loss))
+plt.title('Training loss of FFN with MNIST')
+plt.xlabel('batch')
+plt.ylabel('loss')
+plt.show()
+
+predicts = []
+
+for x, y in dataloader_test:
+    p = layer1.forward(x.T)
+    y = layer2.forward(p)
+    q = layer3.forward(y)
+    z = layer4.forward(q)
+    predicts.append(list(z.T))
+
+images, labels = mnist_test[0:]
+predicts = np.identity(10)[np.argmax(np.array(predicts).reshape(-1, 10), axis=1)]
+results = np.dot(labels.T, predicts).astype(np.int32)
+
+print(results)
+print('accuary={}'.format(np.diag(results).sum() / results.sum()))
+  \end{lstlisting}
+
+  \begin{itembox}[l]{出力結果}
+    {\footnotesize
+    \begin{verbatim}
+epoch:0 loss:0.2523595456655897
+epoch:1 loss:0.1783767324616495
+epoch:2 loss:0.13051501818352595
+epoch:3 loss:0.11571855536826176
+epoch:4 loss:0.08457559114881316
+epoch:5 loss:0.05905629578978815
+epoch:6 loss:0.051956685309520426
+epoch:7 loss:0.047524731738717844
+epoch:8 loss:0.04473252626393911
+epoch:9 loss:0.04225189062581892
+epoch:10 loss:0.03969878490015143
+epoch:11 loss:0.037133564395709875
+epoch:12 loss:0.03470599079638301
+epoch:13 loss:0.03251194227002699
+epoch:14 loss:0.030504217377877056
+epoch:15 loss:0.028733949273416725
+epoch:16 loss:0.02733138361801906
+epoch:17 loss:0.026216503928003555
+epoch:18 loss:0.025227079373516093
+epoch:19 loss:0.024355322842522995
+
+[[5799    1    9    3    9   17   29    9   42    5]
+ [   3 6616   30   23    7    7    7   15   24   10]
+ [  27   18 5635   44   51   10   40   49   71   13]
+ [  16   16   99 5700    7   92   15   61   89   36]
+ [  11   20   20    2 5591    4   28   16   12  138]
+ [  32   12   27   79   26 5093   42   21   50   39]
+ [  36    6   10    0   29   48 5759    2   25    3]
+ [  11   26   47   15   41    3    3 6034   16   69]
+ [  24   44   38   74   16   52   25   17 5519   42]
+ [  33    9    9   59  102   21   10   82   52 5572]]
+accuary=0.9553
+
+[[ 959    0    0    2    2    4    6    3    4    0]
+ [   0 1118    3    2    1    2    3    1    5    0]
+ [   5    2  951   14   13    4    8   15   18    2]
+ [   0    1   10  942    1   16    0   10   22    8]
+ [   2    1    3    1  928    0    7    1    3   36]
+ [   6    1    0   21    4  823    9    2   18    8]
+ [  12    3    5    0    7   12  911    1    7    0]
+ [   1    8   20    5    6    1    0  964    2   21]
+ [   5    3    3   13   10   17    8    9  894   12]
+ [   6    6    1    6   24   14    3    8    5  936]]
+accuary=0.9426
+    \end{verbatim}}
+  \end{itembox}
+
+  \newpage
+
+  \begin{figure}[h]
+    \centering
+    \includegraphics[width=10cm]{images/exercise4.3.jpg}
+    \caption{ハイパーパラメータを変更した後のモデル学習時の損失関数}
+    \label{fig:mnist-ffn-tuned-loss}
+  \end{figure}
+
+  \paragraph{ 考察}
+  まず，前課題で学習させたモデルのtrain, testの各精度は86.93\%と87.67\%となっていた．そこからハイパーパラメータのエポック数と中間層の次元数をそれぞれ5から20，10から50というふうに変えて再度モデルを学習させた．そうしたらtrain，testの各精度は95.53\%，94.26\%と約10\%近くも向上した．エポック数を増やすと学習がより進み，中間層の次元を増やすとより柔軟なモデルにすることができ，モデルの表現力が上がる．その双方の効果が出て10\%近くも精度が向上したのではないかと考えた．
+
 
 \end{document}
